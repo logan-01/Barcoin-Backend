@@ -20,7 +20,7 @@ export const sendApproveEmail = async (
 
   try {
     const data = await resend.emails.send({
-      from: "Barcoin <onboarding@resend.dev>", // Use your verified domain later
+      from: "Barcoin <onboarding@resend.dev>",
       to: email,
       subject: "Account Approved - BARCOIN",
       html: htmlTemplate,
