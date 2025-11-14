@@ -6,11 +6,22 @@ const nodemailer = require("nodemailer");
 
 dotenv.config();
 
-export const sendApproveEmail = (
+export const sendApproveEmail = async (
   name: string,
   password: string,
   email: string
-) => {
+): Promise<void> => {
+  // Validate environment variables
+  if (
+    !process.env.GOOGLE_CLIENT_ID ||
+    !process.env.GOOGLE_CLIENT_SECRET ||
+    !process.env.GOOGLE_REFRESH_TOKEN
+  ) {
+    throw new Error(
+      "Missing required email configuration environment variables"
+    );
+  }
+
   const filePath = path.join(__dirname, "../../html/emailTemplate.html");
   let htmlTemplate = fs.readFileSync(filePath, "utf-8");
 
@@ -29,19 +40,24 @@ export const sendApproveEmail = (
     },
   });
 
-  //Compose Email
+  // Compose Email
   const mailOptions = {
-    from: `"Barcoin" ${process.env.GMAIL_USER}`,
+    from: `"Barcoin" <barcoinapp@gmail.com>`,
     to: email,
     subject: "Account Approved - BARCOIN",
     html: htmlTemplate,
   };
 
-  //Send Email
-  transporter.sendMail(mailOptions, (error: any, info: any) => {
-    if (error) {
-      return console.log("Error:", error);
-    }
-    console.log("Email sent:", info.response);
+  // Send Email with Promise
+  return new Promise((resolve, reject) => {
+    transporter.sendMail(mailOptions, (error: any, info: any) => {
+      if (error) {
+        console.error("Email Error:", error);
+        reject(error);
+      } else {
+        console.log("Email sent:", info.response);
+        resolve();
+      }
+    });
   });
 };

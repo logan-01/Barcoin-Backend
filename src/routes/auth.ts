@@ -102,6 +102,11 @@ router.post("/approveUser/:userId", async (req, res) => {
 
     const userData = userDoc.data();
     const fullName = userData?.fullName || "User";
+    const userEmail = userData?.email;
+
+    if (!userEmail) {
+      return res.status(400).json({ error: "User email not found" });
+    }
 
     // Update Firestore user document
     await firestore.collection("users").doc(userId).update({
@@ -111,10 +116,23 @@ router.post("/approveUser/:userId", async (req, res) => {
       approvedBy: adminId,
     });
 
-    // Send Email with full name instead of OTP
-    sendApproveEmail(fullName, otp, userData?.email);
+    // Send Email and WAIT for it to complete
+    try {
+      await sendApproveEmail(fullName, otp, userEmail);
+      console.log(`✅ Approval email sent successfully to ${userEmail}`);
+    } catch (emailError) {
+      // Log email error but don't fail the approval
+      console.error("❌ Failed to send approval email:", emailError);
+      // Optionally: You could still return success but notify about email failure
+      return res.json({
+        success: true,
+        fullName,
+        emailSent: false,
+        warning: "User approved but email notification failed",
+      });
+    }
 
-    res.json({ success: true, fullName }); // Return fullName for reference
+    res.json({ success: true, fullName, emailSent: true });
   } catch (error) {
     console.error("Error approving user:", error);
     const message =
