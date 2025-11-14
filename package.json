@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/html dist/html",
     "start": "node dist/index.js",
     "dev": "nodemon",
     "test": "nodemon --exec ts-node src/scripts/dailyLogs.test.ts",
