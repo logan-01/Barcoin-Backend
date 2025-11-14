@@ -27,7 +27,7 @@ router.post("/registerUser", async (req, res) => {
       uid: userRecord.uid,
       email,
       fullName,
-      phoneNumber,
+      phoneNumber, // Add this
       role: "user",
       status: "pending",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -83,7 +83,7 @@ router.post("/registrationStatus", async (req, res) => {
   }
 });
 
-// Approve Account
+// Approver Account
 router.post("/approveUser/:userId", async (req, res) => {
   const { userId } = req.params;
   const { adminId } = req.body;
@@ -91,7 +91,10 @@ router.post("/approveUser/:userId", async (req, res) => {
   try {
     const otp = generateOTP();
 
-    // Get user data from Firestore first
+    // Update Firebase Auth password
+    await auth.updateUser(userId, { password: otp });
+
+    // Get user data from Firestore
     const userDoc = await firestore.collection("users").doc(userId).get();
     if (!userDoc.exists) {
       return res.status(404).json({ error: "User not found" });
@@ -99,18 +102,6 @@ router.post("/approveUser/:userId", async (req, res) => {
 
     const userData = userDoc.data();
     const fullName = userData?.fullName || "User";
-    const userEmail = userData?.email;
-
-    // Validate email exists
-    if (!userEmail) {
-      return res.status(400).json({ error: "User email not found" });
-    }
-
-    console.log(`Approving user: ${fullName} (${userEmail})`);
-    console.log(`Generated OTP: ${otp}`);
-
-    // Update Firebase Auth password
-    await auth.updateUser(userId, { password: otp });
 
     // Update Firestore user document
     await firestore.collection("users").doc(userId).update({
@@ -120,31 +111,10 @@ router.post("/approveUser/:userId", async (req, res) => {
       approvedBy: adminId,
     });
 
-    // Send Email with AWAIT and proper error handling
-    try {
-      await sendApproveEmail(fullName, otp, userEmail);
-      console.log(`✅ Email sent successfully to ${userEmail}`);
+    // Send Email with full name instead of OTP
+    sendApproveEmail(fullName, otp, userData?.email);
 
-      res.json({
-        success: true,
-        fullName,
-        emailSent: true,
-        message: "User approved and email sent successfully",
-      });
-    } catch (emailError) {
-      console.error("❌ Failed to send email:", emailError);
-
-      // User is still approved, but email failed
-      res.json({
-        success: true,
-        fullName,
-        emailSent: false,
-        warning:
-          "User approved but email notification failed. Please send credentials manually.",
-        emailError:
-          emailError instanceof Error ? emailError.message : "Unknown error",
-      });
-    }
+    res.json({ success: true, fullName }); // Return fullName for reference
   } catch (error) {
     console.error("Error approving user:", error);
     const message =

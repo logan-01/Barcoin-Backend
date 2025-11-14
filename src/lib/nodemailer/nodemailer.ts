@@ -1,13 +1,12 @@
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
-import { Resend } from "resend";
+
+const nodemailer = require("nodemailer");
 
 dotenv.config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-export const sendApproveEmail = async (
+export const sendApproveEmail = (
   name: string,
   password: string,
   email: string
@@ -15,21 +14,34 @@ export const sendApproveEmail = async (
   const filePath = path.join(__dirname, "../../html/emailTemplate.html");
   let htmlTemplate = fs.readFileSync(filePath, "utf-8");
 
+  // Replace placeholders dynamically
   htmlTemplate = htmlTemplate.replace("{{name}}", name);
   htmlTemplate = htmlTemplate.replace("{{password}}", password);
 
-  try {
-    const data = await resend.emails.send({
-      from: "Barcoin <onboarding@resend.dev>",
-      to: email,
-      subject: "Account Approved - BARCOIN",
-      html: htmlTemplate,
-    });
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      type: "OAuth2",
+      user: "barcoinapp@gmail.com",
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
+    },
+  });
 
-    console.log("Email sent:", data);
-    return data;
-  } catch (error) {
-    console.error("Error sending email:", error);
-    throw error;
-  }
+  //Compose Email
+  const mailOptions = {
+    from: `"Barcoin" ${process.env.GMAIL_USER}`,
+    to: email,
+    subject: "Account Approved - BARCOIN",
+    html: htmlTemplate,
+  };
+
+  //Send Email
+  transporter.sendMail(mailOptions, (error: any, info: any) => {
+    if (error) {
+      return console.log("Error:", error);
+    }
+    console.log("Email sent:", info.response);
+  });
 };
