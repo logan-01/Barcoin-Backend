@@ -1,11 +1,13 @@
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
-const nodemailer = require("nodemailer");
+import { Resend } from "resend";
 
 dotenv.config();
 
-export const sendApproveEmail = (
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+export const sendApproveEmail = async (
   name: string,
   password: string,
   email: string
@@ -16,34 +18,18 @@ export const sendApproveEmail = (
   htmlTemplate = htmlTemplate.replace("{{name}}", name);
   htmlTemplate = htmlTemplate.replace("{{password}}", password);
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.GMAIL_HOST, // smtp.gmail.com
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_PASSWORD, // Gmail App Password ONLY
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-    connectionTimeout: 20000,
-    socketTimeout: 20000,
-  });
+  try {
+    const data = await resend.emails.send({
+      from: "Barcoin <onboarding@resend.dev>", // Use your verified domain later
+      to: email,
+      subject: "Account Approved - BARCOIN",
+      html: htmlTemplate,
+    });
 
-  const mailOptions = {
-    from: `"Barcoin" <${process.env.GMAIL_USER}>`,
-    to: email,
-    subject: "Account Approved - BARCOIN",
-    html: htmlTemplate,
-  };
-
-  transporter.sendMail(mailOptions, (error: any, info: any) => {
-    if (error) {
-      console.log("Error:", error);
-      return;
-    }
-    console.log("Email sent:", info.response);
-  });
+    console.log("Email sent:", data);
+    return data;
+  } catch (error) {
+    console.error("Error sending email:", error);
+    throw error;
+  }
 };

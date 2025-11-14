@@ -21,7 +21,8 @@
     "express": "^4.21.2",
     "firebase-admin": "^13.1.0",
     "node-cron": "^4.2.1",
-    "nodemailer": "^7.0.9"
+    "nodemailer": "^7.0.9",
+    "resend": "^6.4.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",
