@@ -1,0 +1,33 @@
+{
+  "name": "barcoin-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "nodemon",
+    "test": "nodemon --exec ts-node src/scripts/dailyLogs.test.ts",
+    "create-admin": "ts-node src/scripts/createInitialAdmin.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@turf/turf": "^7.2.0",
+    "dotenv": "^16.4.7",
+    "expo-server-sdk": "^3.14.0",
+    "express": "^4.21.2",
+    "firebase-admin": "^13.1.0",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^7.0.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "@types/node-cron": "^3.0.11",
+    "nodemon": "^3.1.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}
