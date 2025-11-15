@@ -16,15 +16,18 @@
   "type": "commonjs",
   "dependencies": {
     "@turf/turf": "^7.2.0",
+    "cloudinary": "^2.8.0",
     "dotenv": "^16.4.7",
     "expo-server-sdk": "^3.14.0",
     "express": "^4.21.2",
     "firebase-admin": "^13.1.0",
+    "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.9",
     "resend": "^6.4.2"
   },
   "devDependencies": {
+    "@types/multer": "^2.0.0",
     "@types/node": "^22.13.4",
     "@types/node-cron": "^3.0.11",
     "@types/react": "^19.2.4",

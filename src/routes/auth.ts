@@ -1,7 +1,7 @@
 import express from "express";
 import { auth, firestore, admin } from "../lib/firebase/config";
 import { generateOTP } from "../functions/helper";
-import { sendApproveEmail } from "../lib/nodemailer/nodemailer";
+import { sendApproveEmail } from "../lib/resend/config";
 
 const router = express.Router();
 
@@ -141,6 +141,34 @@ router.post("/approveUser/:userId", async (req, res) => {
         : typeof error === "string"
         ? error
         : JSON.stringify(error);
+    res.status(500).json({ error: message });
+  }
+});
+
+// Delete User
+router.delete("/deleteUser/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  if (!userId) {
+    return res.status(400).json({ error: "User ID is required" });
+  }
+
+  try {
+    // Delete from Firestore
+    await firestore.collection("users").doc(userId).delete();
+
+    // Delete from Firebase Auth
+    await admin.auth().deleteUser(userId);
+
+    res.json({
+      success: true,
+      message: "User deleted successfully",
+      uid: userId,
+    });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    const message =
+      error instanceof Error ? error.message : JSON.stringify(error);
     res.status(500).json({ error: message });
   }
 });
