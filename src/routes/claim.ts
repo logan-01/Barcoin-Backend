@@ -16,6 +16,11 @@ const claimRouter = express.Router();
  *   coins: CoinsCollection
  * }
  */
+
+const formatName = (name: string) => {
+  return name.replace(/\//g, " ");
+};
+
 claimRouter.post("/notify", async (req, res) => {
   try {
     const { userId, userName, totalCoins, totalValue, coins } = req.body;
@@ -37,7 +42,9 @@ claimRouter.post("/notify", async (req, res) => {
     // Send push notification to all admins
     const result = await sendPushNotification(
       "Coins Claimed Successfully 💰",
-      `${userName} claimed ${totalCoins} coins worth ₱${totalValue.toFixed(2)}`,
+      `${formatName(
+        userName
+      )} claimed ${totalCoins} coins worth ₱${totalValue.toFixed(2)}`,
       "transaction",
       {
         userId,
