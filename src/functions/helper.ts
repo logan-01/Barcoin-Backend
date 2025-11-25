@@ -6,3 +6,17 @@ export const generateOTP = () => {
   const finalOTP = "BarCoin@" + otp;
   return finalOTP;
 };
+
+export const formatName = (name: string) => {
+  if (!name) return "";
+  return name
+    .replace(/\//g, " ") // Replace all '/' with spaces
+    .replace(/\s+/g, " ") // Replace multiple spaces with a single space
+    .trim(); // Remove leading/trailing spaces
+};
+
+export const getFirstName = (name: string) => {
+  if (!name) return "";
+
+  return name.split("/")[0].trim();
+};

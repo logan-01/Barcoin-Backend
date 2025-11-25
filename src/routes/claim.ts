@@ -1,5 +1,6 @@
 import express from "express";
 import { sendPushNotification } from "../functions/pushNotification";
+import { formatName } from "../functions/helper";
 
 const claimRouter = express.Router();
 
@@ -11,59 +12,98 @@ const claimRouter = express.Router();
  * {
  *   userId: string,
  *   userName: string,
+ *   userRole: string,
  *   totalCoins: number,
  *   totalValue: number,
  *   coins: CoinsCollection
  * }
  */
 
-const formatName = (name: string) => {
-  return name.replace(/\//g, " ");
-};
-
 claimRouter.post("/notify", async (req, res) => {
   try {
-    const { userId, userName, totalCoins, totalValue, coins } = req.body;
+    const { userId, userName, userRole, totalCoins, totalValue, coins } =
+      req.body;
 
     // Validate required fields
     if (
       !userId ||
       !userName ||
+      !userRole ||
       totalCoins === undefined ||
       totalValue === undefined
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "Missing required fields: userId, userName, totalCoins, totalValue",
+          "Missing required fields: userId, userName, userRole, totalCoins, totalValue",
       });
     }
 
-    // Send push notification to all admins
-    const result = await sendPushNotification(
-      "Coins Claimed Successfully 💰",
-      `${formatName(
-        userName
-      )} claimed ${totalCoins} coins worth ₱${totalValue.toFixed(2)}`,
-      "transaction",
+    const formattedName = formatName(userName);
+    const timestamp = new Date().toISOString();
+
+    // Send personalized notification to the claimer
+    await sendPushNotification(
+      "Coins Claimed Successfully! 🎉",
+      `You have successfully claimed ${totalCoins} coins worth ₱${totalValue.toFixed(
+        2
+      )}`,
+      "claim_logs", // Changed to claim_logs
       {
         userId,
         userName,
-        timestamp: new Date().toISOString(),
+        userRole,
+        timestamp,
         totalCoins,
         totalValue,
         coins,
       },
-      "admin" // Send to all admins only
+      userId // Send to the specific user who claimed
+    );
+
+    // Send detailed notification to all admins (EXCLUDING the claimer if they're an admin)
+    await sendPushNotification(
+      "Coins Claimed Successfully 💰",
+      `${formattedName} claimed ${totalCoins} coins worth ₱${totalValue.toFixed(
+        2
+      )}`,
+      "claim_logs", // Changed to claim_logs
+      {
+        userId,
+        userName,
+        userRole,
+        timestamp,
+        totalCoins,
+        totalValue,
+        coins,
+      },
+      "admin", // Send to all admins
+      userId // EXCLUDE the claimer from receiving this notification
+    );
+
+    // Send simplified notification to all other regular users (EXCLUDING the claimer)
+    await sendPushNotification(
+      "Coins Claimed 💰",
+      `Someone has claimed coins from the machine`,
+      "claim_logs", // Changed to claim_logs
+      {
+        userId,
+        userName,
+        userRole,
+        timestamp,
+        // No detailed coin data for regular users
+      },
+      "user", // Send to regular users only
+      userId // EXCLUDE the claimer from receiving this notification
     );
 
     console.log(
-      `✅ Claim notification sent for ${userName}: ${totalCoins} coins, ₱${totalValue}`
+      `✅ Claim notifications sent for ${userName}: ${totalCoins} coins, ₱${totalValue}`
     );
 
     res.json({
       success: true,
-      message: "Notification sent successfully",
+      message: "Notifications sent successfully",
       data: {
         userName,
         totalCoins,

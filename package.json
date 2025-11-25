@@ -7,7 +7,9 @@
     "build": "tsc && cpx \"src/html/**/*\" dist/html",
     "start": "node dist/index.js",
     "dev": "nodemon",
-    "test": "nodemon --exec ts-node src/scripts/dailyLogs.test.ts",
+    "test-daily": "nodemon --exec ts-node src/scripts/dailyLogs.test.ts",
+    "test-delete": "nodemon --exec ts-node src/scripts/deleteLogs.test.ts",
+    "test-all": "nodemon --exec ts-node src/scripts/testAll.ts",
     "create-admin": "ts-node src/scripts/createInitialAdmin.ts"
   },
   "keywords": [],

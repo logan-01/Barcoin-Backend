@@ -5,21 +5,29 @@ let expo = new Expo({ useFcmV1: true });
 
 /**
  * Get Expo Push Tokens
- * @param userRole - 'admin' for admins only, 'all' for everyone, or specific userId
+ * @param userRole - 'admin' for admins only, 'user' for regular users only, 'all' for everyone, or specific userId
+ * @param excludeUserId - Optional userId to exclude from the token list
  */
 async function getExpoTokens(
-  userRole?: "admin" | "all" | string
+  userRole?: "admin" | "user" | "all" | string,
+  excludeUserId?: string
 ): Promise<string[]> {
   try {
     const usersCollection = firestore.collection("users");
     const tokensSet = new Set<string>();
 
     if (userRole === "admin") {
+      // Get tokens for both admin AND owner roles
       const adminSnapshot = await usersCollection
-        .where("role", "==", "admin")
+        .where("role", "in", ["admin", "owner"]) // ✅ Include both admin and owner
         .get();
 
       adminSnapshot.forEach((userDoc) => {
+        // Skip if this is the excluded user
+        if (excludeUserId && userDoc.id === excludeUserId) {
+          return;
+        }
+
         const userData = userDoc.data();
         if (userData && Array.isArray(userData.expoPushTokens)) {
           userData.expoPushTokens.forEach((token: string) => {
@@ -27,9 +35,38 @@ async function getExpoTokens(
           });
         }
       });
+    } else if (userRole === "user") {
+      // Get only regular user tokens (not admins or owners)
+      const usersSnapshot = await usersCollection.get();
+
+      usersSnapshot.forEach((userDoc) => {
+        // Skip if this is the excluded user
+        if (excludeUserId && userDoc.id === excludeUserId) {
+          return;
+        }
+
+        const userData = userDoc.data();
+        // Only include users that are NOT admin or owner
+        if (
+          userData &&
+          userData.role !== "admin" &&
+          userData.role !== "owner" &&
+          Array.isArray(userData.expoPushTokens)
+        ) {
+          userData.expoPushTokens.forEach((token: string) => {
+            tokensSet.add(token);
+          });
+        }
+      });
     } else if (userRole === "all" || !userRole) {
+      // Get all user tokens
       const usersSnapshot = await usersCollection.get();
       usersSnapshot.forEach((userDoc) => {
+        // Skip if this is the excluded user
+        if (excludeUserId && userDoc.id === excludeUserId) {
+          return;
+        }
+
         const userData = userDoc.data();
         if (userData && Array.isArray(userData.expoPushTokens)) {
           userData.expoPushTokens.forEach((token: string) => {
@@ -38,7 +75,7 @@ async function getExpoTokens(
         }
       });
     } else {
-      // Specific user
+      // Specific user by userId
       const userDoc = await usersCollection.doc(userRole).get();
       const userData = userDoc.data();
       if (userData && Array.isArray(userData.expoPushTokens)) {
@@ -62,6 +99,7 @@ async function storeNotification(
   title: string,
   body: string,
   type: string,
+  recipient: string,
   data?: any
 ) {
   try {
@@ -70,10 +108,12 @@ async function storeNotification(
       body,
       type,
       data,
-      read: false,
+      readBy: [], // Initialize empty array for tracking who read the notification
+      recipient, // 'admin', 'user', 'all', or specific userId
+      dismissedBy: [], // Initialize empty array for tracking dismissed users
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
-    console.log("✅ Notification stored in Firestore");
+    console.log(`✅ Notification stored in Firestore for ${recipient}`);
   } catch (error) {
     console.error("❌ Error storing notification:", error);
   }
@@ -85,16 +125,18 @@ async function storeNotification(
  * @param body - Notification body
  * @param type - Notification type (e.g., 'daily_log', 'transaction', 'alert')
  * @param data - Additional data payload (optional)
- * @param recipient - 'admin', 'all', or specific userId (optional, defaults to 'all')
+ * @param recipient - 'admin', 'user', 'all', or specific userId (optional, defaults to 'all')
+ * @param excludeUserId - Optional userId to exclude from receiving the push notification
  */
 export async function sendPushNotification(
   title: string,
   body: string,
   type: string = "normal",
   data?: any,
-  recipient: "admin" | "all" | string = "all"
+  recipient: "admin" | "user" | "all" | string = "all",
+  excludeUserId?: string
 ) {
-  const tokenArray = await getExpoTokens(recipient);
+  const tokenArray = await getExpoTokens(recipient, excludeUserId);
 
   if (tokenArray.length === 0) {
     console.log("⚠️ No tokens found for:", recipient);
@@ -155,8 +197,8 @@ export async function sendPushNotification(
     }
   }
 
-  await storeNotification(title, body, type, data);
-  console.log("✅ Push notification sent successfully");
+  await storeNotification(title, body, type, recipient, data);
+  console.log(`✅ Push notification sent successfully to ${recipient}`);
 
   return { success: true, message: "Notification sent" };
 }

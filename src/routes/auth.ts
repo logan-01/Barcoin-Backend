@@ -2,6 +2,7 @@ import express from "express";
 import { auth, firestore, admin } from "../lib/firebase/config";
 import { generateOTP } from "../functions/helper";
 import { sendApproveEmail } from "../lib/resend/config";
+import { formatName } from "../functions/helper";
 
 const router = express.Router();
 
@@ -101,7 +102,7 @@ router.post("/approveUser/:userId", async (req, res) => {
     }
 
     const userData = userDoc.data();
-    const fullName = userData?.fullName || "User";
+    const fullName = formatName(userData?.fullName || "User");
     const userEmail = userData?.email;
 
     if (!userEmail) {

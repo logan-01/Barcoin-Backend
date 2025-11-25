@@ -53,27 +53,24 @@ machineStatusRef.on("value", async (snapshot) => {
     // Determine notification details based on status
     let title = "";
     let body = "";
-    let notificationType = "info";
 
     // Only two states: run or stop
     if (status === "run") {
       title = "Machine Activated 🟢";
       body = "The BarCoin counter is now up and running.";
-      notificationType = "success";
     } else if (status === "stop") {
       title = "Machine Deactivated 🔴";
       body = "The BarCoin counter has been turned off.";
-      notificationType = "warning";
     } else {
       // Fallback for unexpected status
       return; // Don't send a notification for an unknown status
     }
 
-    // Send notification
+    // Send notification to admins only
     await sendPushNotification(
       title,
       body,
-      notificationType,
+      "machine", // Changed to machine
       { status },
       "admin" // Send to admins only
     );
@@ -104,11 +101,11 @@ cron.schedule(cronExpression, async () => {
       if (coinType === "twentyPeso") totalValue += coinData.total * 20;
     }
 
-    // Send notification
+    // Send notification to admins only
     await sendPushNotification(
       "Daily Log Created 📝",
       `${totalCoins} coins collected worth ₱${totalValue.toFixed(2)}`,
-      "daily_log",
+      "daily_logs", // Changed to daily_logs
       {
         date: logEntry.timestamp,
         totalCoins,
@@ -146,18 +143,18 @@ cron.schedule(cronExpression, async () => {
 //       if (coinType === "twentyPeso") totalValue += coinData.total * 20;
 //     }
 
-//     // Send notification
+//     // Send notification to admins only (for testing)
 //     const result = await sendPushNotification(
 //       "Daily Log Created 📊",
 //       `${totalCoins} coins collected worth ₱${totalValue.toFixed(2)}`,
-//       "daily_log",
+//       "daily_logs", // Changed to daily_logs
 //       {
 //         date: logEntry.timestamp,
 //         totalCoins,
 //         totalValue,
 //         coins: logEntry.coins,
 //       },
-//       "all" // or "admin" for testing
+//       "admin" // Changed from "all" to "admin" for proper testing
 //     );
 
 //     res.json({
