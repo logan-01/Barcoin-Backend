@@ -6,7 +6,235 @@ import { formatName } from "../functions/helper";
 
 const router = express.Router();
 
-//Register Account
+// Login Account
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password required" });
+  }
+
+  try {
+    const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
+
+    if (!FIREBASE_API_KEY) {
+      console.error("FIREBASE_API_KEY not configured");
+      return res.status(500).json({ error: "Server configuration error" });
+    }
+
+    // Verify password with Firebase Auth REST API
+    const authResponse = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.toLowerCase(),
+          password: password,
+          returnSecureToken: true,
+        }),
+      }
+    );
+
+    const authData = await authResponse.json();
+
+    if (!authResponse.ok) {
+      const errorCode = authData.error?.message;
+
+      // Log the actual error for debugging
+      console.log("Firebase Auth Error:", errorCode);
+
+      switch (errorCode) {
+        // Invalid credentials
+        case "INVALID_PASSWORD":
+        case "EMAIL_NOT_FOUND":
+        case "INVALID_EMAIL":
+          return res.status(401).json({ error: "Invalid credentials" });
+
+        // Account issues
+        case "USER_DISABLED":
+          return res.status(403).json({
+            error: "Account has been disabled",
+          });
+
+        // Rate limiting
+        case "TOO_MANY_ATTEMPTS_TRY_LATER":
+          return res.status(429).json({
+            error: "Too many attempts. Try again later.",
+          });
+
+        // Missing password
+        case "MISSING_PASSWORD":
+          return res.status(400).json({
+            error: "Password is required",
+          });
+
+        // Weak password (shouldn't happen on login, but just in case)
+        case "WEAK_PASSWORD":
+          return res.status(400).json({
+            error: "Password is too weak",
+          });
+
+        // Invalid API key
+        case "INVALID_API_KEY":
+        case "API_KEY_INVALID":
+          console.error("Invalid Firebase API Key!");
+          return res.status(500).json({
+            error: "Server configuration error",
+          });
+
+        // Operation not allowed
+        case "OPERATION_NOT_ALLOWED":
+          return res.status(403).json({
+            error: "Email/password authentication is not enabled",
+          });
+
+        // Network or unknown errors
+        case "NETWORK_REQUEST_FAILED":
+          return res.status(503).json({
+            error: "Network error. Please try again.",
+          });
+
+        // Fallback for any other error
+        default:
+          console.error("Unhandled Firebase Auth Error:", errorCode);
+          return res.status(400).json({
+            error: "Invalid email or password",
+          });
+      }
+    }
+
+    const { localId } = authData;
+
+    // Get user from Firestore
+    const userDoc = await firestore.collection("users").doc(localId).get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: "Account not found" });
+    }
+
+    const userData = userDoc.data();
+
+    if (!userData) {
+      return res.status(404).json({ error: "User data not found" });
+    }
+
+    // Check account status
+    const statusErrors: Record<string, string> = {
+      blocked: "Your account has been blocked.",
+      pending: "Your account is pending approval.",
+      rejected: "Your registration was not approved.",
+    };
+
+    if (userData.status !== "approved") {
+      const errorMessage =
+        statusErrors[userData.status] || "Account not accessible";
+      return res.status(403).json({ error: errorMessage });
+    }
+
+    // Create custom token
+    const customToken = await admin.auth().createCustomToken(localId, {
+      role: userData.role,
+      status: userData.status,
+    });
+
+    res.json({
+      success: true,
+      token: customToken,
+      user: {
+        uid: userData.uid,
+        email: userData.email,
+        fullName: userData.fullName,
+        role: userData.role,
+      },
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// Block Account
+router.post("/blockUser/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const { adminId } = req.body; // Who blocked them
+
+  if (!userId) {
+    return res.status(400).json({ error: "User ID required" });
+  }
+
+  try {
+    // 1. Update Firestore status
+    await firestore.collection("users").doc(userId).update({
+      status: "blocked",
+      blockedAt: admin.firestore.FieldValue.serverTimestamp(),
+      blockedBy: adminId,
+    });
+
+    // 2. Update custom claims (token becomes aware of block)
+    await admin.auth().setCustomUserClaims(userId, {
+      status: "blocked",
+      role: null, // Remove role privileges
+    });
+
+    // 3. 🔥 CRITICAL: Revoke all refresh tokens
+    // This forces logout on ALL devices immediately
+    await admin.auth().revokeRefreshTokens(userId);
+
+    console.log(`✅ User ${userId} blocked and logged out from all devices`);
+
+    res.json({
+      success: true,
+      message: "User blocked and logged out from all devices",
+    });
+  } catch (error) {
+    console.error("Error blocking user:", error);
+    res.status(500).json({ error: "Failed to block user" });
+  }
+});
+
+// Unblock Account
+router.post("/unblockUser/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  if (!userId) {
+    return res.status(400).json({ error: "User ID required" });
+  }
+
+  try {
+    // Get user data to restore role
+    const userDoc = await firestore.collection("users").doc(userId).get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userData = userDoc.data();
+
+    // 1. Update Firestore
+    await firestore.collection("users").doc(userId).update({
+      status: "approved",
+      unblockedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // 2. Restore custom claims
+    await admin.auth().setCustomUserClaims(userId, {
+      status: "approved",
+      role: userData?.role || "user",
+    });
+
+    console.log(`✅ User ${userId} unblocked`);
+
+    res.json({
+      success: true,
+      message: "User unblocked successfully",
+    });
+  } catch (error) {
+    console.error("Error unblocking user:", error);
+    res.status(500).json({ error: "Failed to unblock user" });
+  }
+});
+
 router.post("/registerUser", async (req, res) => {
   const { fullName, email, phoneNumber } = req.body;
 
